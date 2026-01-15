@@ -351,7 +351,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.9beta"
-VERSIONDATE="2026-01-14"
+VERSIONDATE="2026-01-15"
 
 # MARK: Functions
 
@@ -1880,8 +1880,14 @@ aircall)
 airflow)
     name="Air"
     type="dmg"
-    downloadURL="$(downloadURLFromGit AirLabsTeam desktop-releases)"
-    appNewVersion="$(versionFromGit AirLabsTeam desktop-releases)"
+    if [[ $(arch) == "arm64" ]]; then
+        archiveName="Air-arm64.dmg"
+
+    elif [[ $(arch) == "i386" ]]; then
+        archiveName="Air-x64.dmg"
+    fi
+    downloadURL="$(downloadURLFromGit AirLabsTeam airflow-releases)"
+    appNewVersion="$(versionFromGit AirLabsTeam airflow-releases)"
     expectedTeamID="8RBYE8TY7T"
     ;;
 airserver)
@@ -3868,7 +3874,7 @@ diskspace)
     ;;
 displaylinkmanager)
     name="DisplayLink Manager"
-    type="pkgInZip"
+    type="pkg"
     #packageID="com.displaylink.displaylinkmanagerapp"
     downloadURL=https://www.synaptics.com$(redirect=$(curl -sfL https://www.synaptics.com/products/displaylink-graphics/downloads/macos | grep -m 1 'class="download-link">Download' | sed 's/.*href="//' | sed 's/".*//') && curl -sfL "https://www.synaptics.com$redirect" | grep 'class="no-link"' | awk -F 'href="' '{print $2}' | awk -F '"' '{print $1}')
     appNewVersion=$(curl -sfL https://www.synaptics.com/products/displaylink-graphics/downloads/macos | grep -m 1 "Release:" | cut -d ' ' -f2)
@@ -6537,6 +6543,12 @@ macports)
     type="pkg"
     #buildVersion=$(uname -r | cut -d '.' -f 1)
     case $(uname -r | cut -d '.' -f 1) in
+        25)
+            archiveName="Tahoe.pkg"
+            ;;
+	    24)
+	        archiveName="Sequoia.pkg"
+	        ;;
         23)
             archiveName="Sonoma.pkg"
             ;;
@@ -6553,12 +6565,12 @@ macports)
             archiveName="Catalina.pkg"
             ;;
         *)
-            cleanupAndExit 98 "macOS 10.14 or earlier not supported by Installomator."
+            cleanupAndExit 98 "Mac Ports label does not support this version of darwin."
             ;;
     esac
     downloadURL=$(downloadURLFromGit macports macports-base)
     appNewVersion=$(versionFromGit macports macports-base)
-    appCustomVersion(){ if [ -x /opt/local/bin/port ]; then /opt/local/bin/port version | awk '{print $2}'; else "0"; fi }
+    appCustomVersion(){ if [ -x /opt/local/bin/port ]; then /opt/local/bin/port version | awk '{print $2}'; fi }
     updateTool="/opt/local/bin/port"
     updateToolArguments="selfupdate"
     expectedTeamID="QTA3A3B7F3"
@@ -9102,8 +9114,8 @@ shotcut)
 shottr)
     name="Shottr"
     type="dmg"
-    downloadURL="https://shottr.cc$(curl -fs "https://shottr.cc/newversion.html" | grep -o '\/dl\/Shottr-[0-9].[0-9].[0-9]\.dmg' | head -1 | xargs)"
-    appNewVersion=$(echo $downloadURL | grep -o '[0-9].[0-9].[0-9]' | xargs)
+    downloadURL="https://shottr.cc$(curl -fs "https://shottr.cc/newversion.html" | grep -o '\/dl\/Shottr-[0-9.]*\.dmg' | head -1 | xargs)"
+    appNewVersion=$(echo $downloadURL | grep -oE '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1 | xargs)
     expectedTeamID="2Y683PRQWN"
     ;;
 sidekick)
