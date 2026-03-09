@@ -1,7 +1,13 @@
 name: Assemble Labels (Manual)
 
 # Run manually for testing and validation
-on: [workflow_dispatch]
+#on: [workflow_dispatch]
+
+on:
+  workflow_dispatch:        # Keep manual trigger
+  push:
+    branches: [ gnos1s.prod ]      # ← Add this to auto-run on push
+
 
 # Comment out the above line and uncomment below to run this on schedule
 #on:
@@ -50,3 +56,4 @@ jobs:
       with:
         commit_message: "Runner compiled Installomator.sh and Labels.txt using assemble.sh"
         file_pattern:  'Installomator.sh Labels.txt'
+        
