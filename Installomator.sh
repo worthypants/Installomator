@@ -351,11 +351,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.9beta"
-<<<<<<< HEAD
-VERSIONDATE="2026-03-06"
-=======
 VERSIONDATE="2026-03-09"
->>>>>>> main
 
 # MARK: Functions
 
