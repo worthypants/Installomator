@@ -37,7 +37,11 @@ jobs:
       - name: Fetch upstream main and reset branch
         if: steps.check.outputs.changed == 'true'
         run: |
+          # Preserve assemble.sh — it lives in our branch, not upstream
+          cp -L utils/assemble.sh /tmp/assemble.sh
           git reset --hard upstream/main
+          mkdir -p utils
+          cp /tmp/assemble.sh utils/assemble.sh
           echo "Branch reset to upstream/main at $(git log -1 --format='%h %s')"
 
       - name: Apply patches
@@ -103,8 +107,8 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: |
           echo "Running assemble.sh --script..."
-          chmod +x assemble.sh
-          ./assemble.sh --script
+          chmod +x utils/assemble.sh
+          ./utils/assemble.sh --script
           echo "Assemble completed."
 
       - name: Commit and force push
