@@ -2,12 +2,12 @@ name: Sync Installomator from Upstream
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # nightly at 03:00 UTC
+    - cron: '0 3 * * *'   # nightly, but skips if upstream hasn't changed
   workflow_dispatch:        # allow manual trigger from GitHub UI
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
 
     steps:
       - name: Checkout gnos1s.prod.auto
