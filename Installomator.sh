@@ -331,6 +331,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -349,7 +351,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.9beta"
-VERSIONDATE="2025-12-23"
+VERSIONDATE="2026-04-26"
 
 # MARK: Functions
 
@@ -456,7 +458,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -465,7 +468,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -8407,6 +8411,13 @@ orion)
     downloadURL="https://cdn.kagi.com/downloads/OrionInstaller.dmg"
     expectedTeamID="TFVG979488"
     ;;
+orkadesktop)
+    name="Orka Desktop"
+    type="dmg"
+    downloadURL="$(downloadURLFromGit macstadium orka-desktop)"
+    appNewVersion="$(versionFromGit macstadium orka-desktop)"
+    expectedTeamID="23KP83Z488"
+    ;;
 osquery)
     name="osquery-*"
     type="pkg"
@@ -11062,9 +11073,8 @@ veracrypt|\
 veracrypt-macfuse)
     name="VeraCrypt"
     type="pkgInDmg"
-    archiveName="VeraCrypt_[0-9.].*\.dmg"
-    downloadURL=$(curl -sfL "https://api.github.com/repos/veracrypt/VeraCrypt/releases" | awk -F '"' "/browser_download_url/ && /$archiveName\"/ { print \$4; exit }")
-    appNewVersion=$(echo "${downloadURL}" | sed -E 's/.*\/[a-zA-Z]*_([0-9.]*.*)\.dmg/\1/g')
+    downloadURL="$(downloadURLFromGit veracrypt VeraCrypt)"
+    appNewVersion="$(versionFromGit veracrypt VeraCrypt)"
     expectedTeamID="Z933746L2S"
     ;;
 vernierspectralanalysis)

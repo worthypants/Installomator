@@ -331,6 +331,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
