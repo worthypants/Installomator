@@ -8,6 +8,9 @@ on:
 jobs:
   sync:
     runs-on: macos-latest
+    permissions:
+      contents: write
+      workflows: write
 
     steps:
       - name: Checkout gnos1s.prod.auto
@@ -37,11 +40,10 @@ jobs:
       - name: Fetch upstream main and reset branch
         if: steps.check.outputs.changed == 'true'
         run: |
-          # Preserve assemble.sh — it lives in our branch, not upstream
-          cp -L utils/assemble.sh /tmp/assemble.sh
+          # Preserve sync-installomator.yml — it lives in our branch, not upstream
+          cp -L .github/workflows/sync-installomator.yml /tmp/sync-installomator.yml
           git reset --hard upstream/main
-          mkdir -p utils
-          cp /tmp/assemble.sh utils/assemble.sh
+          cp /tmp/sync-installomator.yml .github/workflows/sync-installomator.yml  
           echo "Branch reset to upstream/main at $(git log -1 --format='%h %s')"
 
       - name: Apply patches
