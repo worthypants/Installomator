@@ -37,12 +37,8 @@ jobs:
       - name: Fetch upstream main and reset branch
         if: steps.check.outputs.changed == 'true'
         run: |
-          # Preserve sync-installomator.yml — it lives in our branch, not upstream
-          cp -L .github/workflows/sync-installomator.yml /tmp/sync-installomator.yml
           git reset --hard upstream/main
           rm -rf .github/workflows
-          mkdir -p .github/workflows
-          cp /tmp/sync-installomator.yml .github/workflows/sync-installomator.yml
           echo "Branch reset to upstream/main at $(git log -1 --format='%h %s')"
 
       - name: Apply patches
