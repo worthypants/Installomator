@@ -8,9 +8,6 @@ on:
 jobs:
   sync:
     runs-on: macos-latest
-    permissions:
-      contents: write
-      workflow: write
 
     steps:
       - name: Checkout gnos1s.prod.auto
@@ -43,7 +40,9 @@ jobs:
           # Preserve sync-installomator.yml — it lives in our branch, not upstream
           cp -L .github/workflows/sync-installomator.yml /tmp/sync-installomator.yml
           git reset --hard upstream/main
-          cp /tmp/sync-installomator.yml .github/workflows/sync-installomator.yml  
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+          cp /tmp/sync-installomator.yml .github/workflows/sync-installomator.yml
           echo "Branch reset to upstream/main at $(git log -1 --format='%h %s')"
 
       - name: Apply patches
