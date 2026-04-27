@@ -38,7 +38,7 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: |
           git reset --hard upstream/main
-          rm -rf .github/workflows
+          git rm -rf .github/workflows
           echo "Branch reset to upstream/main at $(git log -1 --format='%h %s')"
 
       - name: Apply patches
