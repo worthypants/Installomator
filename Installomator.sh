@@ -335,6 +335,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -353,7 +355,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.10beta"
-VERSIONDATE="2026-09-15"
+VERSIONDATE="2026-09-24"
 
 # MARK: Functions
 
@@ -460,7 +462,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -469,7 +472,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -2799,6 +2803,19 @@ betterdisplay)
     appNewVersion=$(versionFromGit waydabber BetterDisplay)
     expectedTeamID="299YSU96J7"
     ;;
+bettershot)
+    name="BetterShot"
+    type="dmg"
+    if [[ $(arch) == "arm64" ]]; then
+        downloadURL=$(downloadURLFromGit "KartikLabhshetwar" "better-shot")
+        appNewVersion=$(versionFromGit "KartikLabhshetwar" "better-shot")
+    else
+        archiveName="bettershot-x86_64.dmg"
+        downloadURL=$(downloadURLFromGit "KartikLabhshetwar" "better-shot")
+        appNewVersion=$(versionFromGit "KartikLabhshetwar" "better-shot")
+    fi
+    expectedTeamID="8JL39GK2DC"
+    ;;
 bettertouchtool)
     # credit: Søren Theilgaard (@theilgaard)
     name="BetterTouchTool"
@@ -2911,6 +2928,53 @@ blackhole64ch)
     appNewVersion=$($(getJSONValue "$(curl -fsL https://formulae.brew.sh/api/cask/blackhole-64ch.json)" "version"))
     expectedTeamID="Q5C99V536K"
     blockingProcesses=( "coreaudiod" )
+    ;;
+blackmagicatemswitchers)
+    name="Blackmagic ATEM Switchers"
+    appName="/Blackmagic ATEM Switchers/ATEM Software Control.app"
+    type="pkgInDmgInZip"
+    versionFeed=$(curl -fs https://www.blackmagicdesign.com/api/support/us/downloads.json)
+    downloadID=$(getJSONValue "${versionFeed}" ".downloads.find(item => item.name.includes('DaVinci Resolve Studio')).urls['Mac OS X'][0].downloadId")
+    downloadURL=$(curl --compressed -fsL --header "Content-Type: application/json;charset=UTF-8" --header "User-Agent: Mozilla/5.0" --data '{"country": "us", "platform": "Mac OS X", "product": "DaVinci Resolve Studio"}' "https://www.blackmagicdesign.com/api/register/us/download/${downloadID}")
+    appCustomVersion(){ grep "release_version" "/Applications/Blackmagic ATEM Switchers/ATEM Setup.app/Contents/Resources/settings.ini" | awk -F "=" '{print$2}'}
+    appNewVersion=$(echo ${downloadURL} | grep -oE '/v([0-9.]+)' | cut -d'v' -f2)
+    blockingProcesses=( "ATEM Setup" "ATEM Software Control" )
+    expectedTeamID="9ZGFBWLSYP"
+    ;;
+blackmagiccameras)
+    name="Blackmagic Cameras"
+    appName="Blackmagic Cameras/Blackmagic Camera Setup.app"
+    type="pkgInDmgInZip"
+    versionFeed=$(curl -fs https://www.blackmagicdesign.com/api/support/us/downloads.json)
+    downloadID=$(getJSONValue "${versionFeed}" ".downloads.find(item => item.name.includes('Blackmagic Camera')).urls['Mac OS X'][0].downloadId")
+    downloadURL=$(curl --compressed -fsL --header "Content-Type: application/json;charset=UTF-8" --header "User-Agent: Mozilla/5.0" --data '{"country": "us", "platform": "Mac OS X", "product": "Blackmagic Camera"}' "https://www.blackmagicdesign.com/api/register/us/download/${downloadID}")
+    appNewVersion=$(echo ${downloadURL} | grep -oE '/v([0-9.]+)' | cut -d'v' -f2)
+    appCustomVersion(){ grep "release_version" "/Applications/Blackmagic Cameras/Blackmagic Camera Setup.app/Contents/Resources/settings.ini" | awk -F "=" '{print$2}'}
+    blockingProcesses=( "Blackmagic Camera Setup" )
+    expectedTeamID="9ZGFBWLSYP"
+    ;;
+blackmagicconverters)
+    name="Blackmagic Converters"
+    appName="Blackmagic Converters/Converters Setup.app"
+    type="pkgInDmgInZip"
+    versionFeed=$(curl -fs https://www.blackmagicdesign.com/api/support/us/downloads.json)
+    downloadID=$(getJSONValue "${versionFeed}" ".downloads.find(item => item.name.includes('Blackmagic Converters')).urls['Mac OS X'][0].downloadId")
+    downloadURL=$(curl --compressed -fsL --header "Content-Type: application/json;charset=UTF-8" --header "User-Agent: Mozilla/5.0" --data '{"country": "us", "platform": "Mac OS X", "product": "Blackmagic Converters"}' "https://www.blackmagicdesign.com/api/register/us/download/${downloadID}")
+    appNewVersion=$(echo ${downloadURL} | grep -oE '/v([0-9.]+)' | cut -d'v' -f2)
+    appCustomVersion(){ grep "release_version" "/Applications/Blackmagic Converters/Converters Setup.app/Contents/Resources/settings.ini" | awk -F "=" '{print$2}'}
+    blockingProcesses=( "Converters Setup" )
+    expectedTeamID="9ZGFBWLSYP"
+    ;;
+blackmagicultimatte)
+    name="Blackmagic Ultimatte"
+    type="pkgInDmgInZip"
+    versionFeed=$(curl -fs https://www.blackmagicdesign.com/api/support/us/downloads.json)
+    downloadID=$(getJSONValue "${versionFeed}" ".downloads.find(item => item.name.includes('Ultimatte')).urls['Mac OS X'][0].downloadId")
+    downloadURL=$(curl --compressed -fsL --header "Content-Type: application/json;charset=UTF-8" --header "User-Agent: Mozilla/5.0" --data '{"country": "us", "platform": "Mac OS X", "product": "Ultimatte"}' "https://www.blackmagicdesign.com/api/register/us/download/${downloadID}")
+    appNewVersion=$(getJSONValue "${versionFeed}" ".downloads.find(item => item.name.includes('Ultimatte')).urls['Mac OS X'].map(version => [version.major, version.minor, version.releaseNum].join('.'))[0]")
+    appCustomVersion(){ grep "release_version" "/Applications/Blackmagic Ultimatte/Blackmagic Ultimatte Setup.app/Contents/Resources/settings.ini" | awk -F "=" '{print$2}'}
+    blockingProcesses=( UltimatteControl UltimatteHardwarePanelSetup "Ultimatte Setup" )
+    expectedTeamID="9ZGFBWLSYP"
     ;;
 blender)
     name="Blender"
@@ -3237,11 +3301,11 @@ camunda)
     name="Camunda Modeler"
     type="dmg"
     if [[ $(arch) == "arm64" ]]; then
-        downloadURL=$(curl -fs https://camunda.com/download/modeler/ |  sed -n 's/.*href="\([^"]*\)".*/\1/p' | grep arm64.dmg)
+        downloadURL=$(curl -fsL https://docs.camunda.io/downloads/ | grep -oE 'https://downloads\.camunda\.cloud/release/camunda-modeler/[^"]*mac-arm64\.dmg' | head -1)
     elif [[ $(arch) == "i386" ]]; then
-        downloadURL=$(curl -fs https://camunda.com/download/modeler/ |  sed -n 's/.*href="\([^"]*\)".*/\1/p' | grep x64.dmg)
+        downloadURL=$(curl -fsL https://docs.camunda.io/downloads/ | grep -oE 'https://downloads\.camunda\.cloud/release/camunda-modeler/[^"]*mac-x64\.dmg' | head -1)
     fi
-    appNewVersion=$(echo "${downloadURL}" | sed 's/.*release\/camunda-modeler\/\([^\/]*\)\/camunda-modeler-.*/\1/')
+    appNewVersion=$(echo "${downloadURL}" | sed -E 's/.*camunda-modeler\/([^\/]*)\/camunda-modeler-.*/\1/')
     expectedTeamID="3JVGD57JQZ"
     ;;
 canva)
@@ -3251,6 +3315,14 @@ canva)
         appNewVersion=$( curl -fsLI -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" -H "accept-encoding: gzip, deflate, br" -H "Referrer Policy: strict-origin-when-cross-origin" -H "upgrade-insecure-requests: 1" -H "sec-fetch-dest: document" -H "sec-gpc: 1" -H "sec-fetch-user: ?1" -H "accept-language: en-US,en;q=0.9" -H "accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9" -H "sec-fetch-mode: navigate" "https://www.canva.com/download/mac/intel/canva-desktop/" | grep -i "^location" | cut -d " " -f2 | tr -d '\r' | sed -E 's/.*\/[a-zA-Z]*-([0-9.]*)-*.*\.dmg/\1/g' )
 
     expectedTeamID="5HD2ARTBFS"
+    ;;
+capcut)
+    name="CapCut"
+    type="dmg"
+    capcutDetails=$(curl -fsL "https://editor-api-sg.capcutapi.com/service/settings/v3/?aid=359289&device_platform=mac&channel=capcutpc_0&version_code=1&os_version=15.0&region=US&traffic_type=release")
+    downloadURL=$(getJSONValue "$capcutDetails" "data.settings.update_reminder.lastest_stable_url")
+    appNewVersion=$(echo "$downloadURL" | sed -E 's/.*CapCut_([0-9]+)_([0-9]+)_([0-9]+)_[0-9]+_capcutpc.*\.dmg/\1.\2.\3/')
+    expectedTeamID="22MMUN2RN5"
     ;;
 captureone|captureonepro)
     name="Capture One"
@@ -5473,7 +5545,7 @@ fork)
     name="Fork"
     type="dmg"
     downloadURL="$(curl -fs "https://git-fork.com/update/feed.xml" | xpath '(//rss/channel/item/enclosure/@url)[1]' 2>/dev/null | cut -d '"' -f 2)"
-    appNewVersion="$(curl -fs "https://git-fork.com/update/feed.xml" | xpath '(//rss/channel/item/enclosure/@sparkle:shortVersionString)[1]' 2>/dev/null | cut -d '"' -f2)"
+    appNewVersion=$(printf '%s' "$downloadURL" | sed -nE 's|.*/Fork-([0-9]+(\.[0-9]+)+)\.dmg([?].*)?$|\1|p')
     expectedTeamID="Q6M7LEEA66"
     ;;
 foxitpdfeditor)
@@ -5704,6 +5776,42 @@ glean)
     appNewVersion=$(curl -sL "https://storage.googleapis.com/glean-downloads/glean-desktop-app/latest-mac.yml" | grep "^version:" | sed 's/^version:[[:space:]]*\([0-9.]*\).*/\1/')
     downloadURL="https://storage.googleapis.com/glean-downloads/glean-desktop-app/Glean-${appNewVersion}-universal.dmg"
     expectedTeamID="877XN49FUQ"
+    ;;
+globalprotect62)
+    name="GlobalProtect"
+    type="pkg"
+    globalProtectBranch="6.2"
+    globalProtectBranchPattern='6\.2'
+    globalProtectBucketURL="https://pan-gp-client.s3.amazonaws.com"
+    appNewVersion="$(curl -fsL --connect-timeout 20 --max-time 120 --retry 3 "${globalProtectBucketURL}/?list-type=2&prefix=${globalProtectBranch}." | grep -Eo "<Key>${globalProtectBranchPattern}\\.[0-9]+-[^/<]+/GlobalProtect\\.pkg</Key>" | sed -E 's#^<Key>##; s#/GlobalProtect\.pkg</Key>$##' | awk -F '[-.]' '{ build = $4; sub(/^[^0-9]*/, "", build); if (build ~ /^[0-9]+$/) { printf "%010d\t%010d\t%s\n", $3 + 0, build + 0, $0 } }' | sort -r | awk -F '\t' 'NR == 1 { print $3 }')"
+    [[ -n "$appNewVersion" ]] || cleanupAndExit 14 "Unable to determine the latest GlobalProtect ${globalProtectBranch}.x package."
+    downloadURL="${globalProtectBucketURL}/${appNewVersion}/GlobalProtect.pkg"
+    expectedTeamID="PXPZ95SK77"
+    blockingProcesses=( NONE )
+    ;;
+globalprotect63)
+    name="GlobalProtect"
+    type="pkg"
+    globalProtectBranch="6.3"
+    globalProtectBranchPattern='6\.3'
+    globalProtectBucketURL="https://pan-gp-client.s3.amazonaws.com"
+    appNewVersion="$(curl -fsL --connect-timeout 20 --max-time 120 --retry 3 "${globalProtectBucketURL}/?list-type=2&prefix=${globalProtectBranch}." | grep -Eo "<Key>${globalProtectBranchPattern}\\.[0-9]+-[^/<]+/GlobalProtect\\.pkg</Key>" | sed -E 's#^<Key>##; s#/GlobalProtect\.pkg</Key>$##' | awk -F '[-.]' '{ build = $4; sub(/^[^0-9]*/, "", build); if (build ~ /^[0-9]+$/) { printf "%010d\t%010d\t%s\n", $3 + 0, build + 0, $0 } }' | sort -r | awk -F '\t' 'NR == 1 { print $3 }')"
+    [[ -n "$appNewVersion" ]] || cleanupAndExit 14 "Unable to determine the latest GlobalProtect ${globalProtectBranch}.x package."
+    downloadURL="${globalProtectBucketURL}/${appNewVersion}/GlobalProtect.pkg"
+    expectedTeamID="PXPZ95SK77"
+    blockingProcesses=( NONE )
+    ;;
+globalprotect64)
+    name="GlobalProtect"
+    type="pkg"
+    globalProtectBranch="6.4"
+    globalProtectBranchPattern='6\.4'
+    globalProtectBucketURL="https://pan-gp-client.s3.amazonaws.com"
+    appNewVersion="$(curl -fsL --connect-timeout 20 --max-time 120 --retry 3 "${globalProtectBucketURL}/?list-type=2&prefix=${globalProtectBranch}." | grep -Eo "<Key>${globalProtectBranchPattern}\\.[0-9]+-[^/<]+/GlobalProtect\\.pkg</Key>" | sed -E 's#^<Key>##; s#/GlobalProtect\.pkg</Key>$##' | awk -F '[-.]' '{ build = $4; sub(/^[^0-9]*/, "", build); if (build ~ /^[0-9]+$/) { printf "%010d\t%010d\t%s\n", $3 + 0, build + 0, $0 } }' | sort -r | awk -F '\t' 'NR == 1 { print $3 }')"
+    [[ -n "$appNewVersion" ]] || cleanupAndExit 14 "Unable to determine the latest GlobalProtect ${globalProtectBranch}.x package."
+    downloadURL="${globalProtectBucketURL}/${appNewVersion}/GlobalProtect.pkg"
+    expectedTeamID="PXPZ95SK77"
+    blockingProcesses=( NONE )
     ;;
 globusconnectpersonal)
     name="Globus Connect Personal"
@@ -6349,6 +6457,97 @@ inetclearreportsdesigner)
     expectedTeamID="9S2Y97K3D9"
     blockingProcesses=( "clear-reports-designer" )
     #forcefulQuit=YES
+    ;;
+infinitealgebra1)
+    name="Infinite Algebra 1"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IA1")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IA1-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infinitealgebra2)
+    name="Infinite Algebra 2"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IA2")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IA2-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infinitecalculus)
+    name="Infinite Calculus"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.ICA")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/ICA-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infinitegeometry)
+    name="Infinite Geometry"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IGE")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IGE-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infinitegrade6math)
+    name="Infinite Grade 6 Math"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IG6")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IG6-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infiniteprealgebra)
+    name="Infinite Pre-Algebra"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IPA")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IPA-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
+    ;;
+infiniteprecalculus)
+    name="Infinite Precalculus"
+    type="dmg"
+    if is-at-least 13 "$installedOSversion"; then
+        kutaOS="macOS"
+    else
+        kutaOS="macOS_legacy"
+    fi
+    kutaVersion=$(getJSONValue "$(curl -fsL "https://cdn.kutasoftware.com/data/versions.json")" "retail.${kutaOS}.IPC")
+    downloadURL="https://cdn.kutasoftware.com/retail/mac/IPC-Site-${kutaVersion}.dmg"
+    appNewVersion=$(sed -E 's/\.0+([0-9])/.\1/g' <<< "$kutaVersion")
+    expectedTeamID="2XHJ678JT7"
     ;;
 inkscape)
     name="Inkscape"
@@ -8783,6 +8982,18 @@ motion)
     appNewVersion="$(versionFromGit usemotion desktopapp)"
     expectedTeamID="6J5V225MV6"
     ;;
+motivmix)
+    name="MOTIV Mix"
+    type="zip"
+    downloadURL=$(curl -fsSIL -o /dev/null -w "%{url_effective}" "https://www.shure.com/en-US/sw/motiv-mix-mac")
+    archiveName=${downloadURL##*/}
+    appNewVersion=$(printf "%s\n" "$archiveName" | cut -d. -f2-5)
+    appCustomVersion(){ echo "$(defaults read /Applications/Shure/MOTIV\ Mix/MOTIV\ Mix.app/Contents/Info.plist CFBundleShortVersionString | sed 's/-release//')" }
+    installerTool="${archiveName%.zip}.app"
+    CLIInstaller="${installerTool}/Contents/MacOS/installbuilder.sh"
+    CLIArguments=( --mode unattended --unattendedmodeui none )
+    expectedTeamID="4K6323CXC4"
+    ;;
 mountainduck)
     name="Mountain Duck"
     type="zip"
@@ -9636,9 +9847,17 @@ pingplotter)
 pique)
     name="Pique"
     type="pkg"
-    packageID="io.macadmins.Pique"
-    downloadURL=$(downloadURLFromGit macadmins pique )
-    appNewVersion=$(versionFromGit macadmins pique )
+    if ! is-at-least 26 "$installedOSversion"; then
+        printlog "Pique requires macOS 26 or later." ERROR
+        cleanupAndExit 15 "Pique requires macOS 26 or later" ERROR
+    fi
+    if [[ $(arch) == "arm64" ]]; then
+        downloadURL=$(downloadURLFromGit macadmins pique)
+    else
+        printlog "Pique is only compatible with Apple Silicon (arm64) Macs." ERROR
+        cleanupAndExit 95 "Pique requires Apple Silicon" ERROR
+    fi
+    appNewVersion=$(printf '%s\n' "$downloadURL" | sed -nE 's#.*/releases/download/v?([^/]+)/.*#\1#p')
     expectedTeamID="T4SK8ZXCXG"
     ;;
 pitch)
@@ -13041,6 +13260,17 @@ zoomrooms)
     appNewVersion="$(curl -fsIL ${downloadURL} | grep -i location | cut -d "/" -f5)"
     expectedTeamID="BJ4HAAB9B3"
     ;;
+zoomvdiplugin)
+    name="ZoomVDI"
+    type="pkg"
+    zoomVDIURLs=$(curl -fs "https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0063810" | grep -oE 'https://zoom\.us/download/vdi/[0-9]+(\.[0-9]+){3}/ZoomVDI_[0-9]+(\.[0-9]+){2}\.universal\.pkg')
+    downloadURL=$(echo "$zoomVDIURLs" | awk -F/ '{split($6,v,"."); printf "%04d.%04d.%04d.%05d %s\n", v[1], v[2], v[3], v[4], $0}' | sort | tail -n 1 | cut -d' ' -f2-)
+    appNewVersion=$(echo "$downloadURL" | sed -E 's|.*/vdi/([0-9]+(\.[0-9]+){3})/ZoomVDI_.*|\1|')
+    versionKey="CFBundleVersion"
+    expectedTeamID="BJ4HAAB9B3"
+    blockingProcesses=( "ZoomVDI" "zoom.us" )
+    ;;
+
 zotero)
     name="Zotero"
     type="dmg"
