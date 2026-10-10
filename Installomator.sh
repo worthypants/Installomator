@@ -335,6 +335,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -353,7 +355,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.10beta"
-VERSIONDATE="2026-10-09"
+VERSIONDATE="2026-10-10"
 
 # MARK: Functions
 
@@ -460,7 +462,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -469,7 +472,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -2154,6 +2158,14 @@ amazonquick)
     fi
     expectedTeamID="94KV3E626L"
     ;;
+amazonredshiftodbcdriver)
+    name="Amazon Redshift ODBC Driver"
+    type="pkg"
+    expectedTeamID="94KV3E626L"
+    downloadURL=$(curl -fsL https://docs.aws.amazon.com/redshift/latest/mgmt/odbc20-install-mac.html | grep -oE 'https://s3.amazonaws.com/redshift-downloads/drivers/odbc/[0-9\.]+/AmazonRedshiftODBC-64-bit[0-9\.]+universal\.pkg')
+    appNewVersion=$(echo $downloadURL | sed -E 's#^.*/([0-9\.]+)/.*#\1#')
+    packageID="com.amazon.redshift.odbc2x64"
+;;
 amazonworkspaces)
     # credit: Isaac Ordonez, Mann consulting (@mannconsulting)
     name="Workspaces"
@@ -4132,13 +4144,20 @@ creativeforcetriad)
 cricutdesignspace)
     name="Cricut Design Space"
     type="dmg"
-    cricutVersionURL=$(getJSONValue $(curl -fsL "https://apis.cricut.com/desktopdownload/UpdateJson?operatingSystem=osxnative&shard=a") "result")
-    cricutVersionJSON=$(curl -fs "$cricutVersionURL")
+    if [[ $(arch) == "arm64" ]]; then
+        cricutVersionJSON=$(curl -fsL "https://software.cricut.com/prod/osx-arm64/latest.json")
+    elif [[ $(arch) == "i386" ]]; then
+        cricutVersionJSON=$(curl -fsL "https://software.cricut.com/prod/osx-x64/latest.json")
+    fi
     appNewVersion=$(getJSONValue "$cricutVersionJSON" "rolloutVersion")
-    downloadURL=$(getJSONValue $(curl  -fsL "https://apis.cricut.com/desktopdownload/InstallerFile?shard=a&operatingSystem=osxnative&fileName=CricutDesignSpace-Install-v${appNewVersion}.dmg") "result")
+    cricutDownloadFilename=$(getJSONValue "$cricutVersionJSON" "rolloutInstallFile")
+    if [[ $(arch) == "arm64" ]]; then
+        downloadURL="https://software.cricut.com/prod/osx-arm64/$cricutDownloadFilename"
+    elif [[ $(arch) == "i386" ]]; then
+        downloadURL="https://software.cricut.com/prod/osx-x64/$cricutDownloadFilename"
+    fi
     expectedTeamID="25627ZFVT7"
     ;;
-
 crisp)
 	name="Crisp"
 	type="dmg"
@@ -4289,7 +4308,10 @@ dbvisualizer)
     fi
     expectedTeamID="U9TP5KYV49"
     ;;
-dcp-o-matic|dcpomatic|dcp-o-matic2|dcpomatic2)
+dcp-o-matic|\
+dcpomatic|\
+dcp-o-matic2|\
+dcpomatic2)
     name="DCP-o-matic 2"
     type="dmg"
     appNewVersion=$(curl -fs https://dcpomatic.com/download | grep "Stable release: " | awk -F '</p>' '{print $1}' | grep -o -e "[0-9.]*")
@@ -7952,7 +7974,8 @@ macports)
     updateToolArguments="selfupdate"
     expectedTeamID="QTA3A3B7F3"
     ;;
-mactexbasic|basictex)
+mactexbasic|\
+basictex)
     name="MacTeX Basic"
     type="pkg"
     downloadURL="https://mirror.ctan.org/systems/mac/mactex/BasicTeX.pkg"
@@ -10269,6 +10292,23 @@ qlab)
     downloadURL="https://qlab.app/downloads/QLab.dmg"
     appNewVersion=$(curl -fs "https://qlab.app/appcast/v5/" | xpath 'string(//rss/channel[1]/item/enclosure/@sparkle:shortVersionString)')
     expectedTeamID="7672N4CCJM"
+    ;;
+qualified)
+    name="Qualified"
+    type="dmg"
+    downloadURL="https://app.qualified.com/download/mac"
+    appNewVersion=$(curl -fsIL -o /dev/null -w '%{url_effective}' "$downloadURL" | sed -E 's|.*/Qualified-([0-9]+(\.[0-9]+)+)-universal\.dmg([?].*)?$|\1|')
+    expectedTeamID="X4K33UUA44"
+    ;;
+quarto)
+    name="Quarto"
+    type="pkg"
+    archiveName="macos.pkg"
+    downloadURL=$(downloadURLFromGit quarto-dev quarto-cli)
+    appNewVersion=$(versionFromGit quarto-dev quarto-cli)
+    expectedTeamID="FYF2F5GFX4"
+    packageID="org.rstudio.quarto"
+    blockingProcesses=( NONE )
     ;;
 quickbooksonline)
     name="QuickBooks Online"
