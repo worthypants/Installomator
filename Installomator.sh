@@ -335,6 +335,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -353,7 +355,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.10beta"
-VERSIONDATE="2026-10-28"
+VERSIONDATE="2026-10-29"
 
 # MARK: Functions
 
@@ -460,7 +462,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -469,7 +472,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -2236,6 +2240,7 @@ anastasiysextensionmanager)
     name="ExtensionManager"
     type="zip"
     downloadURL="https://f000.backblazeb2.com/file/anastasiy-downloads/EM/ExtensionManager.zip"
+    appNewVersion=$(curl -fs "https://anastasiy.com/checkupdates.sp.xml?product=ExtensionManager" | xpath 'string(/rss/channel/item[last()]/enclosure/@*[local-name()="shortVersionString"])')
     expectedTeamID="D3SBBNFWTC"
     ;;
 androidfiletransfer)
@@ -3927,8 +3932,9 @@ claricopilot)
 claudedesktop)
     name="Claude"
     type="zip"
-    appNewVersion=$(curl -fs "https://downloads.claude.ai/releases/darwin/universal/RELEASES.json" | grep -o '"currentRelease":"[^"]*"' | cut -d'"' -f4)
-    downloadURL=$(curl -fs "https://downloads.claude.ai/releases/darwin/universal/RELEASES.json" | grep -o '"url":"[^"]*"' | cut -d'"' -f4)
+    releaseFeed=$(curl -fsL "https://downloads.claude.ai/releases/darwin/universal/RELEASES.json")
+    appNewVersion=$(getJSONValue "${releaseFeed}" "currentRelease")
+    downloadURL=$(getJSONValue "${releaseFeed}" "releases[0].updateTo.url")
     expectedTeamID="Q6L2SF6YDW"
     blockingProcesses=( "Claude" "Claude Helper" )
     ;;
@@ -9570,14 +9576,6 @@ nomad)
     downloadURL="https://files.jamfconnect.com/NoMAD.pkg"
     expectedTeamID="VRPY9KHGX6"
     ;;
-nomadlogin)
-    # credit: Søren Theilgaard (@theilgaard)
-    name="NoMAD Login"
-    type="pkg"
-    downloadURL="https://files.nomad.menu/NoMAD-Login-AD.pkg"
-    appNewVersion=$(curl -fs https://nomad.menu/support/ | grep "NoMAD Login AD Downloads" | sed -E 's/.*Current Version ([0-9\.]*)<.*/\1/g')
-    expectedTeamID="AAPZK3CB24"
-    ;;
 nordlayer)
     # credit: Taboc741 (https://github.com/taboc741)
     name="NordLayer"
@@ -9619,19 +9617,12 @@ nova)
     appNewVersion="$(curl -fsIL https://download.panic.com/nova/Nova-Latest.zip | grep -i ^location | tail -1 | sed -E 's/^.*http.*\%20([0-9.]*)\.zip/\1/g')"
     expectedTeamID="VE8FC488U5"
     ;;
-nps-santa)
-    name="Santa"
-    type="pkg"
-    packageID="com.northpolesec.santa"
-    downloadURL=$(downloadURLFromGit northpolesec santa)
-    appNewVersion=$(versionFromGit northpolesec santa)
-    expectedTeamID="ZMCG7MLDV9"
-    ;;
+npssanta|\
+nps-santa|\
 npssantafull)
     name="Santa"
     type="pkg"
     packageID="com.northpolesec.santa"
-    archiveName="[0-9]\\.pkg"
     downloadURL=$(downloadURLFromGit northpolesec santa)
     appNewVersion=$(versionFromGit northpolesec santa)
     expectedTeamID="ZMCG7MLDV9"
@@ -12422,13 +12413,6 @@ techsmithaudiate)
 	appName="Audiate.app"
 	expectedTeamID="7TQL462TU8"
 	;;
-techsmithcapture)
-    # credit Elena Ackley (@elenaelago)
-    name="TechSmith Capture"
-    type="dmg"
-    downloadURL="https://cdn.cloud.techsmith.com/techsmithcapture/mac/TechSmithCapture.dmg"
-    expectedTeamID="7TQL462TU8"
-    ;;
 teladocproviderinstaller)
     name="TeladocProviderInstaller"
     type="pkg"
@@ -13162,19 +13146,6 @@ vernierspectralanalysis)
     expectedTeamID="75WN2B2WR8"
     ;;
 
-vfx)
-    name="VFX Suite"
-    type="zip"
-    appCustomVersion(){
-      ls "/Users/Shared/Red Giant/uninstall" | grep vfx | grep -Eo "202[0-9]+\.[0-9]+\.[0-9]+" | head -n 30 | sort -gru
-    }
-    appNewVersion="$(curl -H "User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.1 Safari/605.1.15" -fs "https://support.maxon.net/hc/en-us/sections/4406405445394-VFX-Suite" | grep "#icon-star" -B3 | grep -Eo "202[0-9]+\.[0-9]+\.[0-9]+" | head -n 30 | sort -gru)"
-    downloadURL="https://mx-app-blob-prod.maxon.net/mx-package-production/installer/macos/redgiant/vfx/releases/${appNewVersion}/VfxSuite-${appNewVersion}_Mac.zip"
-    installerTool="VFX Suite Installer.app"
-    CLIInstaller="VFX Suite Installer.app/Contents/Scripts/install.sh"
-    CLIArguments=()
-    expectedTeamID="4ZY22YGXQG"
-    ;;
 viennaassistant)
     name="Vienna Assistant"
     type="pkgInZip"
