@@ -335,6 +335,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -353,7 +355,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.10beta"
-VERSIONDATE="2026-11-03"
+VERSIONDATE="2026-11-05"
 
 # MARK: Functions
 
@@ -460,7 +462,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -469,7 +472,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -4700,6 +4704,19 @@ docker)
     expectedTeamID="9BNSXJN65R"
     blockingProcesses=( "Docker Desktop" )
     ;;
+dockersbx)
+    name="Sbx"
+    type="dmg"
+    archiveName="DockerSandboxes-darwin.dmg"
+    if [[ $(arch) == "arm64" ]]; then
+        downloadURL="$(downloadURLFromGit docker sbx-releases)"
+    else
+        printlog "Docker Sandboxes (Sbx) is only compatible with Apple Silicon (arm64) Macs." ERROR
+        cleanupAndExit 95 "Sbx requires Apple Silicon" ERROR
+    fi
+    appNewVersion=$(versionFromGit docker sbx-releases)
+    expectedTeamID="9BNSXJN65R"
+    ;;
 dockutil)
     name="dockutil"
     type="pkg"
@@ -8316,6 +8333,13 @@ macports)
     updateToolArguments="selfupdate"
     expectedTeamID="QTA3A3B7F3"
     blockingProcesses=( NONE )
+    ;;
+macsfancontrol)
+    name="Macs Fan Control"
+    type="zip"
+    downloadURL=$(downloadURLFromGit crystalidea macs-fan-control)
+    appNewVersion=$(versionFromGit crystalidea macs-fan-control)
+    expectedTeamID="ACC5R6RH47"
     ;;
 macshot)
     name="macshot"
