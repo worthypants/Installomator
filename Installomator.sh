@@ -351,7 +351,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.9beta"
-VERSIONDATE="2026-03-30"
+VERSIONDATE="2026-11-11"
 
 # MARK: Functions
 
@@ -10836,8 +10836,8 @@ webcatalog)
     name="WebCatalog"
     type="dmg"
     packageID="com.webcatalog.jordan"
-    downloadURL="https://desktop.webcatalog.io/api/download?platform=macos&arch=universal"
-    appNewVersion=$(curl -fsIL "${downloadURL}" | grep -i "^location" | tail -1 | awk '{print $2}' | sed -E 's/.*\/[a-zA-Z]*-([0-9.]*).*/\1/g' )
+    downloadURL=$(curl -fs -o /dev/null -w '%{redirect_url}' "https://trpc.webcatalog.io/api/download?appId=webcatalog&platform=macos")
+    appNewVersion=$(echo "$downloadURL" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     expectedTeamID="36UJGA8U65"
     ;;
 webex|\
