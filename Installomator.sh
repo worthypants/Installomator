@@ -335,6 +335,8 @@ MDMProfileName=""
 
 # Datadog logging used
 datadogAPI=""
+DATADOG_LOGFORMAT='${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}'
+DATADOG_REPEAT_LOGFORMAT='${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times'
 # Simply add your own API key for this in order to have logs sent to Datadog
 # See more here: https://www.datadoghq.com/product/log-management/
 
@@ -353,7 +355,7 @@ if [[ $(/usr/bin/arch) == "arm64" ]]; then
     fi
 fi
 VERSION="10.10"
-VERSIONDATE="2026-11-12"
+VERSIONDATE="2026-11-18"
 
 # MARK: Functions
 
@@ -460,7 +462,8 @@ printlog(){
         echo "$timestamp" : "${log_priority}${space_char} : $label : Last Log repeated ${logrepeat} times" | tee -a $log_location
 
         if [[ ! -z $datadogAPI ]]; then
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : $APPLICATION : $VERSION : $SESSION : Last Log repeated ${logrepeat} times" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_REPEAT_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         fi
         logrepeat=0
     fi
@@ -469,7 +472,8 @@ printlog(){
     # then post to Datadog's HTTPs endpoint.
     if [[ -n $datadogAPI && ${levels[$log_priority]} -ge ${levels[$datadogLoggingLevel]} ]]; then
         while IFS= read -r logmessage; do
-            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${log_priority} : $mdmURL : Installomator-${label} : ${VERSIONDATE//-/} : $SESSION : ${logmessage}" > /dev/null
+            datadogLogEntry=$(eval "echo $DATADOG_LOGFORMAT")
+            curl -s -X POST https://http-intake.logs.datadoghq.com/v1/input -H "Content-Type: text/plain" -H "DD-API-KEY: $datadogAPI" -d "${datadogLogEntry}" > /dev/null
         done <<< "$log_message"
     fi
 
@@ -4006,10 +4010,12 @@ closeio)
 cloudflarewarp)
     name="Cloudflare_WARP"
     type="pkg"
-    packageID="com.cloudflare.1dot1dot1dot1.macos"
-    downloadURL="https://1111-releases.cloudflareclient.com/mac/latest"
-    appNewVersion="$(curl -SLI ${downloadURL} | grep -i "^location.*version" | awk -F "version/" '{print$2}' | awk -F "." '{print$1"."$2"."$3}')"
+    appName="Cloudflare WARP.app"
+    cloudflareFeed="$(curl -fsL "https://downloads.cloudflareclient.com/v1/update/sparkle/macos/ga")"
+    downloadURL="$(echo "${cloudflareFeed}" | xpath 'string((//rss/channel/item)[1]/enclosure/@url)' 2>/dev/null)"
+    appNewVersion="$(echo "${cloudflareFeed}" | xpath 'string((//rss/channel/item)[1]/sparkle:shortVersionString)' 2>/dev/null)"
     expectedTeamID="68WVV388M8"
+    blockingProcesses=( NONE )
     ;;
 cloudtalk)
     name="CloudTalk Phone"
@@ -4091,6 +4097,18 @@ colourcontrastanalyser)
     downloadURL=$(downloadURLFromGit ThePacielloGroup CCAe)
     appNewVersion=$(versionFromGit ThePacielloGroup CCAe)
     expectedTeamID="34RS4UC3M6"
+    ;;
+comfyui)
+    name="Comfy Desktop"
+    type="dmg"
+    if [[ $(arch) != "arm64" ]]; then
+        cleanupAndExit 95 "Comfy Desktop is only available for Apple Silicon" ERROR
+    fi
+    comfyFeed=$(curl -fsL "https://download.todesktop.com/241012ess7yxs0e/latest-mac.yml")
+    appNewVersion=$(echo "${comfyFeed}" | awk '/^version:/{print $2; exit}')
+    comfyDmg=$(echo "${comfyFeed}" | awk -F'url: ' '/url:.*\.dmg/{print $2; exit}' | tr -d '\r')
+    downloadURL="https://download.todesktop.com/241012ess7yxs0e/${comfyDmg// /%20}"
+    expectedTeamID="6FXBT88W8J"
     ;;
 conductor)
     name="Conductor"
@@ -4683,6 +4701,13 @@ dockersbx)
     appNewVersion=$(versionFromGit docker sbx-releases)
     expectedTeamID="9BNSXJN65R"
     ;;
+dockside)
+    name="Dockside"
+    type="dmg"
+    downloadURL="$(downloadURLFromGit PrajwalSD Dockside)"
+    appNewVersion="$(versionFromGit PrajwalSD Dockside)"
+    expectedTeamID="8T2DC9NRXS"
+    ;;
 dockutil)
     name="dockutil"
     type="pkg"
@@ -4695,13 +4720,14 @@ dockutil)
 doctolib)
     name="Doctolib"
     type="dmg"
-    versionKey="CFBundleVersion"
+    doctolibFeed=$(curl -fsL "https://ddv-install.doctolib.fr/latest/latest-mac.yml")
     if [[ $(arch) == "arm64" ]]; then
-        downloadURL="https://ddv-install.doctolib.fr/DoctolibProDesktop-latest-arm64.dmg"
-        appNewVersion=""
+        doctolibArch="arm64"
     elif [[ $(arch) == "i386" ]]; then
-        downloadURL="https://ddv-install.doctolib.fr/DoctolibProDesktop-latest.dmg"
+        doctolibArch="x64"
     fi
+    downloadURL="https://ddv-install.doctolib.fr/latest/$(echo "$doctolibFeed" | grep -oE "DoctolibProDesktop-[0-9.]+-mac-${doctolibArch}\.dmg" | head -1)"
+    appNewVersion=$(echo "$doctolibFeed" | awk '/^version:/ {print $2}')
     expectedTeamID="84K7XVJ72Q"
     ;;
 domzilla-caffeine)
@@ -5895,6 +5921,15 @@ fujifilmwebcam)
     appNewVersion=$( echo “${downloadURL}” | sed -E 's/.*XWebcamIns([0-9]*).*/\1/g' | sed -E 's/([0-9])([0-9]).*/\1\.\2/g')
     expectedTeamID="34LRP8AV2M"
     ;;
+fxfactory)
+    name="FxFactory"
+    type="pkgInZip"
+    downloadURL=$(curl -fsL -A "Mozilla/5.0" https://fxfactory.com/download/ | grep -oE 'https://files\.fxfactory\.com/fxfactory/FxFactory-[0-9.]+-[0-9]+\.zip' | sort -u -t- -k2,2V | tail -1)
+    appNewVersion=$(echo "${downloadURL}" | sed -E 's/.*FxFactory-([0-9.]+)-[0-9]+\.zip/\1/')
+    pkgName="Install FxFactory*.pkg"
+    expectedTeamID="AZLNLGPTT3"
+    blockingProcesses=( "FxFactory" "Final Cut Pro" "Motion" )
+    ;;
 garminaviationdatabasemanager)
     name="Garmin Aviation Database Manager"
     type="pkg"
@@ -6642,6 +6677,14 @@ ibarcoder)
     downloadURL="https://cristallight.com/Downloads/mac/ibarcoder.dmg"
     appNewVersion="$(curl -fs "https://cristallight.com/iBarcoder/" | grep -i version: | head -1 | awk '{print $2}')"
     expectedTeamID="JAXVB9AH9M"
+    ;;
+ibmdatashift)
+    name="IBM Data Shift"
+    type="zip"
+    downloadURL="$(downloadURLFromGit IBM mac-ibm-migration-tool)"
+    appNewVersion="$(echo "$downloadURL" | sed -nE 's|.*/v-([0-9]+\.[0-9]+\.[0-9]+)-b-[0-9]+/.*|\1|p')"
+    expectedTeamID="PETKK2G752"
+    archiveName="IBM.Data.Shift.zip"
     ;;
 ibmnotifier)
     name="IBM Notifier"
@@ -8338,6 +8381,14 @@ macvector)
     versionKey="CFBundleShortVersionString"
     expectedTeamID="BK85R8X44N"
     ;;
+magictoolbox)
+    name="Magic Toolbox"
+    type="pkg"
+    archiveName="MagicToolbox-v[0-9.]*.pkg"
+    downloadURL="$(downloadURLFromGit MDMMagic Magic-Toolbox)"
+    appNewVersion="$(versionFromGit MDMMagic Magic-Toolbox)"
+    expectedTeamID="HFUN8K236G"
+    ;;
 magnolia)
     name="Magnolia"
     type="dmg"
@@ -8467,6 +8518,13 @@ maxqda26)
     downloadURL="https://updates.maxqda.de/MAXQDA/MAXQDA.dmg"
     appNewVersion=$(curl -fsL "https://updates.maxqda.de/MAXQDA/MaxCastMac.xml" | grep -o 'sparkle:shortVersionString="[^"]*"' | head -1 | sed 's/sparkle:shortVersionString="//;s/"//')
     expectedTeamID="7ME932KUT6"
+    ;;
+mdmreportingtool)
+    name="MDM Reporting Tool"
+    type="pkg"
+    downloadURL="$(downloadURLFromGit MDMMagic MDM-Reporting-Tool)"
+    appNewVersion="$(versionFromGit MDMMagic MDM-Reporting-Tool)"
+    expectedTeamID="HFUN8K236G"
     ;;
 mdmwatchdog)
     name="Addigy MDM Watchdog"
@@ -10682,8 +10740,10 @@ python)
 qgis-pr)
     name="QGIS"
     type="dmg"
-    downloadURL="https://download.qgis.org/downloads/macos/qgis-macos-pr.dmg"
-    appNewVersion="$(curl -fs "https://www.qgis.org/da/_static/documentation_options.js" | grep -i version | cut -d "'" -f2)"
+    qgisJson=$(curl -fs "https://raw.githubusercontent.com/qgis/QGIS-Website/refs/heads/main/data/conf.json")
+    downloadURL=$(getJSONValue "$qgisJson" "lr_dmg")
+    appNewVersion=$(getJSONValue "$qgisJson" "release")
+    appName="QGIS-final-${appNewVersion//./_}.app"
     expectedTeamID="4F7N4UDA22"
     ;;
 qgisltr)
@@ -10868,6 +10928,15 @@ redcanarymacmonitor)
     appNewVersion="$(versionFromGit redcanaryco mac-monitor)"
     expectedTeamID="UA6JCQGF3F"
     ;;
+redcinexpro)
+    name="REDCINE-X PRO"
+    versionKey="CFBundleVersion"
+    type="pkg"
+    downloadURL=$(curl -fsL -A "Mozilla/5.0" "https://www.red.com/RedSuiteCentric/SCA-Kilimanjaro/services/Download.Service.ss?downloadIdentifier=redcine-x-pro-mac" | grep -oE '"versionUrl":"[^"]+REDCINE-X_PRO_Build_[0-9.]+\.pkg"' | head -1 | cut -d'"' -f4)
+    appNewVersion=$(echo "${downloadURL}" | sed -E 's/.*_Build_([0-9.]+)\.pkg/\1/')
+    expectedTeamID="4ER5V66EKT"
+    blockingProcesses=( "REDCINE-X PRO" "RED PLAYER" )
+    ;;
 redgiant|\
 magicbullet)
     name="Red Giant"
@@ -11051,6 +11120,14 @@ ringcentralphone)
     expectedTeamID="M932RC5J66"
     blockingProcesses=( "RingCentral Phone" )
     ;;
+rive)
+name="Rive"
+type="dmg"
+riveFeed=$(curl -fsL "https://releases.rive.app/release.xml")
+downloadURL=$(echo "$riveFeed" | xpath '(//rss/channel/item/enclosure/@url)[1]' 2>/dev/null | cut -d '"' -f2)
+appNewVersion=$(echo "$riveFeed" | xpath '(//rss/channel/item/enclosure/@sparkle:shortVersionString)[1]' 2>/dev/null | cut -d '"' -f2)
+expectedTeamID="NJ3JMFUNS9"
+;;
 riversidestudio)
     name="Riverside Studio"
     type="dmg"
@@ -11966,6 +12043,15 @@ starface10x)
     expectedTeamID="Q965D3UXEW"
     versionKey="CFBundleVersion"
     ;;
+starface11x)
+    name="STARFACE"
+    type="dmg"
+    sparkleData=$(curl -fsL "https://www.starface-cdn.de/starface/clients/mac/appcast.xml")
+    downloadURL=$(echo "$sparkleData" | xmllint --xpath 'string((//*[local-name()="enclosure" and starts-with(@*[local-name()="shortVersionString"], "11.")])[1]/@url)' -)
+    appNewVersion=$(echo "$sparkleData" | xmllint --xpath 'string((//*[local-name()="enclosure" and starts-with(@*[local-name()="shortVersionString"], "11.")])[1]/@*[local-name()="version"])' -)
+    expectedTeamID="Q965D3UXEW"
+    versionKey="CFBundleVersion"
+    ;;
 starface90x)
     name="STARFACE"
     type="dmg"
@@ -12090,6 +12176,15 @@ suitestudio)
         downloadURL="https://saturn-installer-prd-124359286071-bucket.s3.amazonaws.com/suite-installer-osx-x64.pkg"
     fi
     expectedTeamID="58KZ58VMJ8"
+    ;;
+sumb)
+    name="SUMB"
+    type="pkg"
+    packageID="fr.jeremyb.sumb"
+    downloadURL="$(downloadURLFromGit jeremy4971 sumb_public)"
+    appNewVersion="$(versionFromGit jeremy4971 sumb_public)"
+    expectedTeamID="73MS2PM6D7"
+    blockingProcesses=( NONE )
     ;;
 sunsama)
     name="Sunsama"
@@ -12323,9 +12418,15 @@ tableauprepbuilder)
 tableaupublic)
     name="Tableau Public"
     type="pkgInDmg"
-    packageID="com.tableausoftware.tableaudesktop"
-    downloadURL=$(curl -fs https://www.tableau.com/downloads/public/mac | awk '/TableauPublic/' | xmllint --recover --html --xpath "//a/text()" -)
-    appNewVersion=$( echo $downloadURL | sed -E 's/.*TableauPublic-([-0-9]*)\.dmg/\1/g' | tr "-" "." )
+    if [[ $(arch) == "arm64" ]]; then
+        appName="Tableau Public (Apple silicon).app"
+        tableauPublicPath="mac-arm64"
+    elif [[ $(arch) == "i386" ]]; then
+        appName="Tableau Public.app"
+        tableauPublicPath="mac"
+    fi
+    downloadURL=$(curl -fsIL -o /dev/null -w "%{url_effective}" "https://www.tableau.com/downloads/public/${tableauPublicPath}")
+    appNewVersion=$(echo "$downloadURL" | sed -En 's#.*TableauPublic-([0-9]+)-([0-9]+)-([0-9]+)(-arm64)?\.dmg#\1.\2.\3#p')
     expectedTeamID="QJ4XPRK37C"
     ;;
 tableaureader)
@@ -12769,16 +12870,29 @@ toonboomstoryboardpro2024)
 toonboomstoryboardpro2025)
     name="Storyboard Pro 25"
     type="dmg"
-    version=$(curl -s "https://fileshare.toonboom.com/wl/?id=gXDIzUJu4BznZHs9e15WxLJdooDPu6ii" | grep -oE '25\.[0-9]+\.[0-9]+' | sort -V | tail -1)
-    build=$(curl -s "https://docs.toonboom.com/help/storyboard-pro-25/storyboard/release-notes/storyboard-pro-25-release-notes.html" | grep -iEo 'build[^0-9]*([0-9]{4,6})' | grep -oE '[0-9]{4,6}')
-    appNewVersion=(${version}.${build})
-    downloadURL="https://fileshare.toonboom.com/wl/?id=gXDIzUJu4BznZHs9e15WxLJdooDPu6ii&path=${version}%2FSBP25-mac-${build}.dmg&mode=list&download=1"
-    folderName="Toon Boom Storyboard Pro 25"
-    appName="${folderName}/Storyboard Pro 25.app"
+    updateData=$(curl -fsL "https://updates.toonboom.com/updates.php?p=sboardPro&v=25.0.0&b=00000")
+    appNewVersion=$(echo $updateData | xpath 'string(//update/@version)' 2>/dev/null | sed -E 's/ \(([0-9]+)\)$/.\1/')
+    downloadURL="https://$(echo $updateData | xpath 'string(//package[@platform="macos"])' 2>/dev/null)"
+    majorMinor=$(echo $appNewVersion | cut -d "." -f 1,2)
+    folderName="Toon Boom Storyboard Pro ${majorMinor}"
+    appName="${folderName}/Storyboard Pro ${majorMinor}.app"
     versionKey="CFBundleVersion"
     expectedTeamID="U5LPYJSPQ3"
+    blockingProcesses=( "Storyboard Pro" )
     ;;
-
+toonboomstoryboardpro2027)
+    name="Storyboard Pro 27"
+    type="dmg"
+    updateData=$(curl -fsL "https://updates.toonboom.com/updates.php?p=sboardPro&v=27.0.0&b=00000")
+    appNewVersion=$(echo $updateData | xpath 'string(//update/@version)' 2>/dev/null | sed -E 's/ \(([0-9]+)\)$/.\1/')
+    downloadURL="https://$(echo $updateData | xpath 'string(//package[@platform="macos"])' 2>/dev/null)"
+    majorMinor=$(echo $appNewVersion | cut -d "." -f 1,2)
+    folderName="Toon Boom Storyboard Pro ${majorMinor}"
+    appName="${folderName}/Storyboard Pro ${majorMinor}.app"
+    versionKey="CFBundleVersion"
+    expectedTeamID="U5LPYJSPQ3"
+    blockingProcesses=( "Storyboard Pro" )
+    ;;
 topazgigapixel|\
 topazgigapixelai)
     name="Topaz Gigapixel AI"
@@ -13208,13 +13322,19 @@ vimcal)
     expectedTeamID="7F7GXK9J99"
     ;;
 virtualbox)
-    # credit: AP Orlebeke (@apizz)
     name="VirtualBox"
     type="pkgInDmg"
     pkgName="VirtualBox.pkg"
-    downloadURL="https:$(curl -fsL "https://www.oracle.com/virtualization/technologies/vm/downloads/virtualbox-downloads.html" | grep "OSX.dmg" | xmllint --html --xpath 'string(//a/@href)' -)"
-    appNewVersion=$(echo "${downloadURL}" | awk -F '/' '{print $5}')
+    if [[ $(arch) == "arm64" ]]; then
+        virtualboxPlatform="DARWIN_ARM64_GENERIC"
+    elif [[ $(arch) == "i386" ]]; then
+        virtualboxPlatform="DARWIN_64BITS_GENERIC"
+    fi
+    virtualboxFeed=$(curl -fsL "https://update.virtualbox.org/query.php/?platform=${virtualboxPlatform}&version=7.0.00_000000&branch=stable")
+    downloadURL=$(echo "$virtualboxFeed" | awk '{print $2}')
+    appNewVersion=$(echo "$virtualboxFeed" | awk '{print $1}')
     expectedTeamID="VB5E2TV963"
+    blockingProcesses=( VirtualBox VirtualBoxVM VBoxHeadless )
     ;;
 virtualboxbeta)
     name="VirtualBox"
